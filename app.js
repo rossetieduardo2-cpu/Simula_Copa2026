@@ -84,7 +84,7 @@
       el.innerHTML = '';
     } else {
       const lista = E.JOGOS_REALIZADOS.map(j => `${flag(j.timeA)} ${esc(j.timeA)} ${j.gA}–${j.gB} ${esc(j.timeB)} ${flag(j.timeB)}`).join(' &nbsp;·&nbsp; ');
-      el.innerHTML = `<span style="color:var(--ouro);">${n} jogo(s) real(is) fixado(s):</span> ${lista}`;
+      el.innerHTML = `<span style="color:var(--ouro);">${n} jogo(s) real(is) fixado(s)</span>`;
     }
   }
 

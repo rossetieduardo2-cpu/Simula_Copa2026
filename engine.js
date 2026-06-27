@@ -17,7 +17,7 @@
   const GRUPOS       = JSON.parse(document.getElementById('data-groups').textContent);
 
   // ---- Parâmetros do motor (idênticos ao R) --------------------------------
-  const FRAC_RAT   = .75;
+  const FRAC_RAT   = 1;
   const FRAC_CAMPO = 4;
   const FRAC_TEMPO = 200;
 
@@ -44,7 +44,7 @@
   //   { timeA:"Brasil", gA:2, timeB:"Marrocos", gB:0 },
   // ===========================================================================
   const JOGOS_REALIZADOS = [
-    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-26 10:48
+    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-27 17:55
     // Fonte: https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
     { timeA:"México", gA:2, timeB:"África do Sul", gB:0 },  // Grupo A — 2026-06-11
     { timeA:"Coreia do Sul", gA:2, timeB:"República Tcheca", gB:1 },  // Grupo A — 2026-06-11
@@ -106,7 +106,14 @@
     { timeA:"Equador", gA:2, timeB:"Alemanha", gB:1 },  // Grupo E — 2026-06-25
     { timeA:"Japão", gA:1, timeB:"Suécia", gB:1 },  // Grupo F — 2026-06-25
     { timeA:"Tunísia", gA:1, timeB:"Holanda", gB:3 },  // Grupo F — 2026-06-25
+    { timeA:"Egito", gA:1, timeB:"Irã", gB:1 },  // Grupo G — 2026-06-26
+    { timeA:"Nova Zelândia", gA:1, timeB:"Bélgica", gB:5 },  // Grupo G — 2026-06-26
+    { timeA:"Cabo Verde", gA:0, timeB:"Arábia Saudita", gB:0 },  // Grupo H — 2026-06-26
+    { timeA:"Uruguai", gA:0, timeB:"Espanha", gB:1 },  // Grupo H — 2026-06-26
+    { timeA:"Noruega", gA:1, timeB:"França", gB:4 },  // Grupo I — 2026-06-26
+    { timeA:"Senegal", gA:5, timeB:"Iraque", gB:0 },  // Grupo I — 2026-06-26
   ];
+
 
 
 
@@ -513,8 +520,8 @@
   function simularMonteCarlo(N, seed, onProgress){
     const rng = mulberry32(seed);
     const todosTimes = Object.values(GRUPOS).flat();
-    const contadores = {campeao:{}, vice:{}, terceiro:{}, quarto:{}, semi:{}};
-    todosTimes.forEach(t => { contadores.campeao[t]=0; contadores.vice[t]=0; contadores.terceiro[t]=0; contadores.quarto[t]=0; contadores.semi[t]=0; });
+    const contadores = {campeao:{}, vice:{}, terceiro:{}, quarto:{}, semi:{}, quartas:{}, oitavas:{}};
+    todosTimes.forEach(t => { contadores.campeao[t]=0; contadores.vice[t]=0; contadores.terceiro[t]=0; contadores.quarto[t]=0; contadores.semi[t]=0;contadores.quartas[t]=0;contadores.oitavas[t]=0; });
 
     for (let i=0;i<N;i++){
       const r = simularCopa(rng);
