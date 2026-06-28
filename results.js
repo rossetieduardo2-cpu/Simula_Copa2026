@@ -195,6 +195,165 @@
   }
 
   // ---------------------------------------------------------------------
+  // TRAJETÓRIA DE UM TIME
+  // ---------------------------------------------------------------------
+  const FUNIL_STEPS = [
+    { key:'grupos',      label:'Fase de grupos' },
+    { key:'r32',         label:'Round of 32' },
+    { key:'r16',         label:'Oitavas' },
+    { key:'qf',          label:'Quartas' },
+    { key:'sf',          label:'Semifinal' },
+    { key:'final_ou_3o', label:'Final / 3º lugar' },
+    { key:'campeao',     label:'Campeão' }
+  ];
+
+  function renderFunilHTML(funilPct){
+    return FUNIL_STEPS.map(step => {
+      const pct = funilPct[step.key];
+      return `
+        <div class="funil-row">
+          <span class="funil-label">${step.label}</span>
+          <div class="funil-bar-track"><div class="funil-bar-fill" style="width:${pct.toFixed(1)}%"></div></div>
+          <span class="funil-pct">${pct.toFixed(1)}%</span>
+        </div>`;
+    }).join('');
+  }
+
+  function renderFaseFinalHTML(faseFinalProb, time){
+    const maxPct = Math.max(...faseFinalProb.map(f => f.pct), 1);
+    const rows = faseFinalProb.slice().reverse().map(f => `
+      <tr>
+        <td>${f.label}</td>
+        <td class="bar-cell"><span class="bar-bg" style="width:${(f.pct/maxPct*100).toFixed(1)}%"></span><span>${f.pct.toFixed(1)}%</span></td>
+      </tr>`).join('');
+    return `
+      <div class="mc-table-wrap">
+        <table class="mc-table">
+          <thead><tr><th>Resultado final do ${esc(time)}</th><th>Probabilidade</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderAdversariosPorFaseHTML(adversariosPorFase, timeAlvo){
+    if (!adversariosPorFase.length){
+      return `<p class="section-desc">${esc(timeAlvo)} não chegou à fase de mata-mata em nenhuma das simulações — a campanha já terminou na fase de grupos.</p>`;
+    }
+    return adversariosPorFase.map(f => {
+      const maxPct = Math.max(...f.adversarios.map(a => a.pctDentroFase), 1);
+      const rows = f.adversarios.slice(0, 6).map(a => `
+        <div class="opp-row">
+          <span class="opp-name">${flag(a.oponente)} ${esc(a.oponente)}</span>
+          <div class="opp-bar-track"><div class="opp-bar-fill" style="width:${(a.pctDentroFase/maxPct*100).toFixed(1)}%"></div></div>
+          <span class="opp-pct">${a.pctDentroFase.toFixed(1)}%</span>
+          <span class="opp-win">${a.pctVitoria.toFixed(0)}% vitória</span>
+        </div>`).join('');
+      return `
+        <div class="traj-fase-card">
+          <div class="traj-fase-head">
+            <span class="traj-fase-title">${f.label}</span>
+            <span class="traj-fase-sub">${esc(timeAlvo)} chega aqui em ${f.pctChegou.toFixed(1)}% das simulações</span>
+          </div>
+          <div class="opp-list">${rows}</div>
+        </div>`;
+    }).join('') + `<p class="section-desc" style="margin-top:10px;">% = participação entre as simulações em que ${esc(timeAlvo)} chegou a essa fase. "Vitória" = chance de ${esc(timeAlvo)} ganhar especificamente contra aquele adversário.</p>`;
+  }
+
+  function renderTrajetoriaCompletaHTML(etapas, faseFinal, time){
+    const passos = etapas.map(e => {
+      const tag = e.venceu ? 'win' : 'loss';
+      return `<span class="traj-step ${tag}">${e.label} <strong>${e.venceu?'✓':'✗'}</strong> vs ${esc(e.oponente)}</span>`;
+    }).join('<span class="traj-arrow">→</span>');
+    const finalLabel = E.LABEL_FASE_FINAL[faseFinal] || faseFinal;
+    const finalTagClass = (faseFinal === 'campeao') ? 'campeao' : (faseFinal === 'vice' || faseFinal === 'terceiro') ? 'podio' : '';
+    return `${passos}<span class="traj-arrow">→</span><span class="traj-step-final ${finalTagClass}">${finalLabel}</span>`;
+  }
+
+  function renderTopTrajetoriasHTML(trajetorias, time, soCampeao){
+    if (!trajetorias.length){
+      return `<p class="section-desc">Nenhuma trajetória de mata-mata registrada para ${esc(time)}.</p>`;
+    }
+    const nCampeao = trajetorias.filter(t => t.faseFinal === 'campeao').length;
+    const visiveis = soCampeao ? trajetorias.filter(t => t.faseFinal === 'campeao') : trajetorias;
+
+    const filtroHTML = `
+      <label class="traj-filter-toggle">
+        <input type="checkbox" id="chk-so-campeao" ${soCampeao ? 'checked' : ''}>
+        <span>Mostrar apenas trajetórias em que ${esc(time)} foi campeão</span>
+      </label>`;
+
+    const resumo = nCampeao > 0
+      ? `<p class="section-desc" style="margin:6px 0 14px;">${trajetorias.length} caminhos distintos identificados no total, ordenados do mais para o menos provável. <span class="traj-legend-campeao">★</span> ${nCampeao} deles terminam com ${esc(time)} campeão${soCampeao ? ' — exibindo apenas esses' : ''}.</p>`
+      : `<p class="section-desc" style="margin:6px 0 14px;">${trajetorias.length} caminhos distintos identificados. Nenhum deles termina com ${esc(time)} campeão nesta amostra.</p>`;
+
+    if (soCampeao && nCampeao === 0){
+      return filtroHTML + resumo + `<p class="section-desc">Sem trajetórias campeãs para mostrar — desmarque o filtro para ver todos os caminhos.</p>`;
+    }
+
+    const rows = visiveis.map((t, i) => {
+      const isCampeao = t.faseFinal === 'campeao';
+      return `
+      <div class="traj-path-row ${isCampeao ? 'is-campeao' : ''}">
+        <div class="traj-path-pct"><span class="rank-num">${i+1}</span>${t.pct.toFixed(2)}%${isCampeao ? ' <span class="traj-star">★</span>' : ''}</div>
+        <div class="traj-path-steps">${renderTrajetoriaCompletaHTML(t.etapas, t.faseFinal, time)}</div>
+      </div>`;
+    }).join('');
+    return filtroHTML + resumo + `<div class="traj-paths-scroll">${rows}</div>`;
+  }
+
+  function renderTrajResult(result){
+    const time = result.time;
+    document.getElementById('panel-traj-results').innerHTML = `
+      <div class="traj-header">
+        <span class="traj-header-flag">${flag(time)}</span>
+        <span class="traj-header-name">${esc(time)}</span>
+        <span class="traj-header-n">${result.N.toLocaleString('pt-BR')} simulações do mata-mata, a partir da fase de grupos já encerrada</span>
+      </div>
+
+      <div class="section-head" style="margin-top:28px;">
+        <div><h2 class="section-title" style="font-size:18px;">Funil de avanço</h2></div>
+      </div>
+      <div class="funil-wrap">${renderFunilHTML(result.funilPct)}</div>
+
+      <div class="section-head" style="margin-top:32px;">
+        <div><h2 class="section-title" style="font-size:18px;">Onde a campanha termina</h2></div>
+      </div>
+      ${renderFaseFinalHTML(result.faseFinalProb, time)}
+
+      <div class="section-head" style="margin-top:32px;">
+        <div>
+          <h2 class="section-title" style="font-size:18px;">Adversário mais provável em cada fase</h2>
+          <p class="section-desc">Considerando só as simulações em que ${esc(time)} chegou até aquela fase.</p>
+        </div>
+      </div>
+      <div class="traj-fase-grid">${renderAdversariosPorFaseHTML(result.adversariosPorFase, time)}</div>
+
+      <div class="section-head" style="margin-top:32px;">
+        <div>
+          <h2 class="section-title" style="font-size:18px;">Todos os caminhos possíveis</h2>
+          <p class="section-desc">Todas as sequências exatas de adversários (vitória/derrota em cada fase) observadas nas simulações, da mais para a menos provável.</p>
+        </div>
+      </div>
+      <div class="traj-paths-wrap" id="traj-paths-wrap"></div>
+    `;
+
+    renderTrajPathsSection(result, true);
+  }
+
+  function renderTrajPathsSection(result, soCampeao){
+    const time = result.time;
+    document.getElementById('traj-paths-wrap').innerHTML =
+      renderTopTrajetoriasHTML(result.trajetorias, time, soCampeao);
+
+    const chk = document.getElementById('chk-so-campeao');
+    if (chk){
+      chk.addEventListener('change', () => {
+        renderTrajPathsSection(result, chk.checked);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // RUN HANDLERS (attached to window so app.js's bindShellEvents can call)
   // ---------------------------------------------------------------------
   function randomSeed(){
@@ -236,6 +395,28 @@
       window.CopaUI.state.lastMC = prob;
       renderMCResult(prob, N);
       document.querySelector('.tab-btn[data-tab="mc"]').click();
+    }, 30);
+  };
+
+  window.runTrajetoria = function(){
+    const teamSelect = document.getElementById('input-traj-team');
+    const nInput = document.getElementById('input-traj-n');
+    const time = teamSelect.value;
+    let N = parseInt(nInput.value, 10) || 5000;
+    N = Math.max(100, Math.min(20000, N));
+    const seed = randomSeed();
+
+    document.getElementById('panel-traj-results').innerHTML = `
+      <div class="loading-pulse">
+        <span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span>
+        &nbsp;Traçando ${N.toLocaleString('pt-BR')} caminhos possíveis para ${time}…
+      </div>`;
+
+    setTimeout(() => {
+      const result = E.simularTrajetoria(time, N, seed);
+      window.CopaUI.state.lastTraj = result;
+      renderTrajResult(result);
+      document.querySelector('.tab-btn[data-tab="traj"]').click();
     }, 30);
   };
 })();

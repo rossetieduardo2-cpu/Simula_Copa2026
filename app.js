@@ -15,9 +15,11 @@
     tab: 'editor',
     lastSingleResult: null,
     lastMC: null,
+    lastTraj: null,
     mcN: 10000,
     seed: 2026,
     openTeam: null,
+    trajTeam: null,
   };
 
   function flag(t){ return E.FLAGS[t] || '⚽'; }
@@ -64,9 +66,25 @@
         <div class="tabs">
           <button class="tab-btn active" data-tab="single">Simulação única</button>
           <button class="tab-btn" data-tab="mc">Probabilidades das Simulações</button>
+          <button class="tab-btn" data-tab="traj">Trajetória de um time</button>
         </div>
         <div class="tab-panel active" id="panel-single"></div>
         <div class="tab-panel" id="panel-mc"></div>
+        <div class="tab-panel" id="panel-traj">
+          <div class="toolbar">
+            <div class="field-inline">
+              <label>SELEÇÃO</label>
+              <select id="input-traj-team" class="traj-team-select"></select>
+            </div>
+            <div class="spacer"></div>
+            <div class="field-inline">
+              <label>SIMULAÇÕES</label>
+              <input type="number" id="input-traj-n" value="5000" min="100" max="20000" step="100">
+            </div>
+            <button class="btn btn-primary" id="btn-run-traj">↝ Traçar trajetórias</button>
+          </div>
+          <div id="panel-traj-results" style="margin-top:20px;"></div>
+        </div>
       </section>
     `;
 
@@ -74,7 +92,35 @@
     renderSingleEmpty();
     renderMCEmpty();
     renderRealGamesNote();
+    renderTrajTeamSelect();
+    renderTrajEmpty();
     bindShellEvents();
+  }
+
+  function renderTrajTeamSelect(){
+    const sel = document.getElementById('input-traj-team');
+    if (!sel) return;
+    sel.innerHTML = Object.keys(E.GRUPOS).map(letra => {
+      const opts = E.GRUPOS[letra].map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+      return `<optgroup label="Grupo ${letra}">${opts}</optgroup>`;
+    }).join('');
+    // tenta manter a seleção anterior, se ainda existir nas opções
+    if (state.trajTeam && Object.values(E.GRUPOS).flat().includes(state.trajTeam)){
+      sel.value = state.trajTeam;
+    } else {
+      state.trajTeam = sel.value;
+    }
+  }
+
+  function renderTrajEmpty(){
+    const el = document.getElementById('panel-traj-results');
+    if (!el) return;
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="ball">↝</div>
+        <strong>Nenhuma trajetória traçada ainda</strong>
+        <p>Escolha uma seleção e clique em "Traçar trajetórias" para ver o funil de avanço, os adversários mais prováveis em cada fase e os caminhos completos mais comuns até o título.</p>
+      </div>`;
   }
 
   function renderRealGamesNote(){
@@ -96,6 +142,10 @@
     });
     document.getElementById('btn-run-single').addEventListener('click', () => window.runSingle());
     document.getElementById('btn-run-mc').addEventListener('click', () => window.runMC());
+    document.getElementById('input-traj-team').addEventListener('change', (ev) => {
+      state.trajTeam = ev.target.value;
+    });
+    document.getElementById('btn-run-traj').addEventListener('click', () => window.runTrajetoria());
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {

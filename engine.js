@@ -550,6 +550,230 @@
     return prob;
   }
 
+  // =====================================================================
+  // Trajetória de uma seleção — Monte Carlo focado em um único time
+  //
+  // Para cada simulação completa da copa, percorre as fases (fase de
+  // grupos -> R32 -> Oitavas -> Quartas -> Semifinal -> Final/3ºlugar)
+  // procurando os jogos em que o TIME_ALVO participou, registrando:
+  //   - em que fase ele caiu (ou se foi campeão)
+  //   - contra quem jogou em cada fase, e o placar
+  // Agrega isso em duas visões:
+  //   (a) funil por fase: % de chegar a cada fase
+  //   (b) trajetórias mais comuns: sequências completas de adversários
+  //       (uma por fase alcançada), ranqueadas por frequência
+  // =====================================================================
+
+  const FASES_MATA_MATA = [
+    { key:'r32', label:'Round of 32' },
+    { key:'r16', label:'Oitavas' },
+    { key:'qf',  label:'Quartas' },
+    { key:'sf',  label:'Semifinal' }
+  ];
+
+  // Acha, dentro do objeto de resultados de uma fase (ex: r.r32, que mapeia
+  // "R73"->jogo, "W73"->vencedor, "L73"->perdedor), o jogo em que timeAlvo
+  // jogou. Retorna {oponente, venceu, golsA, golsB, golsAlvo, golsOponente} ou null.
+  function acharJogoDoTime(faseResultados, timeAlvo){
+    for (const key in faseResultados){
+      if (key[0] !== 'R') continue; // só objetos de jogo (R73, R74, ...)
+      const jogo = faseResultados[key];
+      if (jogo.tA === timeAlvo || jogo.tB === timeAlvo){
+        const ehA = jogo.tA === timeAlvo;
+        const oponente = ehA ? jogo.tB : jogo.tA;
+        const golsAlvo = ehA ? jogo.gA : jogo.gB;
+        const golsOponente = ehA ? jogo.gB : jogo.gA;
+        const venceu = jogo.winner === timeAlvo;
+        return { oponente, venceu, golsAlvo, golsOponente, pen: jogo.pen };
+      }
+    }
+    return null;
+  }
+
+  // Roda uma copa e devolve a trajetória do timeAlvo nela.
+  // etapas: array de {fase, label, oponente, venceu, golsAlvo, golsOponente, pen}
+  // faseFinal: 'grupos' | 'Round of 32' | 'Oitavas' | 'Quartas' | 'Semifinal' | 'vice' | 'campeao'
+  function tracarTrajetoria(r, timeAlvo){
+    const etapas = [];
+
+    // Fase de grupos: o time se classificou (top2 do grupo OU um dos 8
+    // melhores terceiros)? Se não, a trajetória já acaba aqui.
+    let grupoDoTime = null;
+    for (const g in GRUPOS){ if (GRUPOS[g].includes(timeAlvo)){ grupoDoTime = g; break; } }
+    const tabGrupo = r.grupos[grupoDoTime].tab;
+    const linhaTime = tabGrupo.find(row => row.time === timeAlvo);
+    const foiMelhor3 = r.melhores3os.some(row => row.time === timeAlvo);
+    const classificou = linhaTime.pos <= 2 || foiMelhor3;
+
+    if (!classificou){
+      return { etapas, faseFinal:'grupos', posicaoGrupo: linhaTime.pos };
+    }
+
+    const fasesObjs = { r32: r.r32, r16: r.r16, qf: r.qf, sf: r.sf };
+    let aindaVivo = true;
+    let perdeuNaSemi = false;
+
+    for (const fase of FASES_MATA_MATA){
+      if (!aindaVivo) break;
+      const jogo = acharJogoDoTime(fasesObjs[fase.key], timeAlvo);
+      if (!jogo){
+        // Não deveria acontecer estando vivo, mas por segurança interrompe.
+        break;
+      }
+      etapas.push(Object.assign({ fase: fase.key, label: fase.label }, jogo));
+      if (!jogo.venceu){
+        aindaVivo = false;
+        if (fase.key === 'sf') perdeuNaSemi = true;
+      }
+    }
+
+    if (!aindaVivo && !perdeuNaSemi){
+      const ultima = etapas[etapas.length-1];
+      return { etapas, faseFinal: ultima.label, posicaoGrupo: linhaTime.pos };
+    }
+
+    // Chegou ao fim da semifinal (venceu ou perdeu): joga a final (se venceu)
+    // ou a disputa de 3º lugar (se perdeu).
+    if (perdeuNaSemi){
+      const jogo3o = acharJogoDoTime({ R998: r.r3o }, timeAlvo);
+      if (jogo3o){
+        etapas.push(Object.assign({ fase:'terceiro', label:'Disputa de 3º' }, jogo3o));
+        return {
+          etapas,
+          faseFinal: jogo3o.venceu ? 'terceiro' : 'quarto',
+          posicaoGrupo: linhaTime.pos
+        };
+      }
+      // Não deveria chegar aqui se a lógica do bracket estiver consistente.
+      return { etapas, faseFinal:'Semifinal', posicaoGrupo: linhaTime.pos };
+    }
+
+    const jogoFinal = acharJogoDoTime({ R999: r.rFin }, timeAlvo);
+    if (jogoFinal){
+      etapas.push(Object.assign({ fase:'final', label:'Final' }, jogoFinal));
+      return {
+        etapas,
+        faseFinal: jogoFinal.venceu ? 'campeao' : 'vice',
+        posicaoGrupo: linhaTime.pos
+      };
+    }
+
+    // Não deveria chegar aqui se a lógica do bracket estiver consistente.
+    return { etapas, faseFinal:'Semifinal', posicaoGrupo: linhaTime.pos };
+  }
+
+  const ORDEM_FASE_FINAL = [
+    'grupos','Round of 32','Oitavas','Quartas','Semifinal','quarto','terceiro','vice','campeao'
+  ];
+  const LABEL_FASE_FINAL = {
+    grupos: 'Eliminado na fase de grupos',
+    'Round of 32': 'Eliminado no Round of 32',
+    'Oitavas': 'Eliminado nas Oitavas',
+    'Quartas': 'Eliminado nas Quartas',
+    'Semifinal': 'Eliminado na Semifinal',
+    quarto: '4º lugar',
+    terceiro: '3º lugar',
+    vice: 'Vice-campeão',
+    campeao: 'Campeão'
+  };
+
+  function simularTrajetoria(timeAlvo, N, seed, onProgress){
+    const rng = mulberry32(seed);
+
+    const contadorFaseFinal = {};
+    ORDEM_FASE_FINAL.forEach(f => contadorFaseFinal[f] = 0);
+
+    // funil: quantas vezes o time esteve "vivo" ao chegar em cada fase
+    // (chegar = jogou aquela fase, independente do resultado)
+    const funilChegou = { grupos_eliminado:0, r32:0, r16:0, qf:0, sf:0, final_ou_3o:0, campeao:0 };
+
+    // trajetórias completas: chave = sequência "fase:oponente:V/D" concatenada,
+    // valor = {count, etapas (exemplo), faseFinal}
+    const trajetorias = {};
+
+    // adversários mais prováveis POR FASE (mais estável estatisticamente do
+    // que o caminho completo, já que não exige que as fases anteriores
+    // batam exatamente) — chave: fase -> oponente -> {count, vitorias}
+    const adversariosPorFase = {};
+    FASES_MATA_MATA.concat([{key:'final', label:'Final'}, {key:'terceiro', label:'Disputa de 3º lugar'}]).forEach(f => { adversariosPorFase[f.key] = {}; });
+    let chegouNaFase = { r32:0, r16:0, qf:0, sf:0, final:0, terceiro:0 };
+
+    for (let i=0;i<N;i++){
+      const r = simularCopa(rng);
+      const traj = tracarTrajetoria(r, timeAlvo);
+
+      contadorFaseFinal[traj.faseFinal] = (contadorFaseFinal[traj.faseFinal]||0) + 1;
+
+      if (traj.faseFinal === 'grupos') funilChegou.grupos_eliminado++;
+      else {
+        funilChegou.r32++;
+        if (traj.etapas.length >= 2) funilChegou.r16++;
+        if (traj.etapas.length >= 3) funilChegou.qf++;
+        if (traj.etapas.length >= 4) funilChegou.sf++;
+        if (traj.etapas.length >= 5) funilChegou.final_ou_3o++;
+        if (traj.faseFinal === 'campeao') funilChegou.campeao++;
+      }
+
+      const chaveEtapas = traj.etapas.map(e => e.fase + ':' + e.oponente + ':' + (e.venceu?'V':'D')).join('|');
+      const chave = chaveEtapas + '>>' + traj.faseFinal;
+      if (!trajetorias[chave]){
+        trajetorias[chave] = { count:0, etapas: traj.etapas, faseFinal: traj.faseFinal };
+      }
+      trajetorias[chave].count++;
+
+      // Agrega adversário por fase (independente do caminho completo)
+      traj.etapas.forEach(e => {
+        const faseKey = e.fase; // 'r32' | 'r16' | 'qf' | 'sf' | 'final' | 'terceiro'
+        if (!adversariosPorFase[faseKey]) return;
+        chegouNaFase[faseKey] = (chegouNaFase[faseKey]||0) + 1;
+        if (!adversariosPorFase[faseKey][e.oponente]) adversariosPorFase[faseKey][e.oponente] = { count:0, vitorias:0 };
+        adversariosPorFase[faseKey][e.oponente].count++;
+        if (e.venceu) adversariosPorFase[faseKey][e.oponente].vitorias++;
+      });
+
+      if (onProgress && (i % Math.max(1, Math.floor(N/20)) === 0)) onProgress(i, N);
+    }
+
+    const faseFinalProb = ORDEM_FASE_FINAL.map(f => ({
+      fase: f, label: LABEL_FASE_FINAL[f],
+      count: contadorFaseFinal[f], pct: contadorFaseFinal[f]/N*100
+    })).filter(x => x.count > 0);
+
+    const trajetoriasOrdenadas = Object.values(trajetorias)
+      .sort((a,b) => b.count - a.count)
+      .map(t => Object.assign({}, t, { pct: t.count/N*100 }));
+
+    const funilPct = {
+      grupos: 100,
+      r32: funilChegou.r32/N*100,
+      r16: funilChegou.r16/N*100,
+      qf: funilChegou.qf/N*100,
+      sf: funilChegou.sf/N*100,
+      final_ou_3o: funilChegou.final_ou_3o/N*100,
+      campeao: funilChegou.campeao/N*100
+    };
+
+    // Transforma adversariosPorFase em listas ordenadas, com % relativo a
+    // "dado que chegou a esta fase" (não relativo ao total de N simulações)
+    const FASE_LABEL_CURTA = { r32:'Round of 32', r16:'Oitavas', qf:'Quartas', sf:'Semifinal', final:'Final', terceiro:'Disputa de 3º lugar' };
+    const adversariosPorFaseOrdenado = Object.keys(adversariosPorFase).map(faseKey => {
+      const total = chegouNaFase[faseKey] || 0;
+      const lista = Object.keys(adversariosPorFase[faseKey]).map(op => {
+        const d = adversariosPorFase[faseKey][op];
+        return { oponente: op, count: d.count, pctDentroFase: total>0 ? d.count/total*100 : 0, pctVitoria: d.count>0 ? d.vitorias/d.count*100 : 0 };
+      }).sort((a,b) => b.count - a.count);
+      return { fase: faseKey, label: FASE_LABEL_CURTA[faseKey], totalChegou: total, pctChegou: total/N*100, adversarios: lista };
+    }).filter(f => f.totalChegou > 0);
+
+    return {
+      time: timeAlvo, N,
+      faseFinalProb,
+      trajetorias: trajetoriasOrdenadas,
+      funilPct,
+      adversariosPorFase: adversariosPorFaseOrdenado
+    };
+  }
+
   // Expor no namespace global da app
   window.CopaEngine = {
     GRUPOS, FLAGS, BASE_TEAMS, JOGOS_REALIZADOS,
@@ -559,7 +783,8 @@
     resetAll: () => { TEAMS = cloneBaseTeams(); },
     overall,
     mulberry32,
-    simJogo, simularCopa, simularMonteCarlo,
+    simJogo, simularCopa, simularMonteCarlo, simularTrajetoria,
+    LABEL_FASE_FINAL, ORDEM_FASE_FINAL,
     ROUND_LABELS
   };
 })();
