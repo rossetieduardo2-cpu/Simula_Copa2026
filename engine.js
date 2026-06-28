@@ -44,7 +44,7 @@
   //   { timeA:"Brasil", gA:2, timeB:"Marrocos", gB:0 },
   // ===========================================================================
   const JOGOS_REALIZADOS = [
-    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-28 00:03
+    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-28 01:26
     // Fonte: https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
     { timeA:"México", gA:2, timeB:"África do Sul", gB:0 },  // Grupo A — 2026-06-11
     { timeA:"Coreia do Sul", gA:2, timeB:"República Tcheca", gB:1 },  // Grupo A — 2026-06-11
@@ -112,12 +112,13 @@
     { timeA:"Uruguai", gA:0, timeB:"Espanha", gB:1 },  // Grupo H — 2026-06-26
     { timeA:"Noruega", gA:1, timeB:"França", gB:4 },  // Grupo I — 2026-06-26
     { timeA:"Senegal", gA:5, timeB:"Iraque", gB:0 },  // Grupo I — 2026-06-26
+    { timeA:"Argélia", gA:3, timeB:"Áustria", gB:3 },  // Grupo J — 2026-06-27
+    { timeA:"Jordânia", gA:1, timeB:"Argentina", gB:3 },  // Grupo J — 2026-06-27
     { timeA:"Colômbia", gA:0, timeB:"Portugal", gB:0 },  // Grupo K — 2026-06-27
     { timeA:"Rep. Dem. do Congo", gA:3, timeB:"Uzbequistão", gB:1 },  // Grupo K — 2026-06-27
     { timeA:"Panamá", gA:0, timeB:"Inglaterra", gB:2 },  // Grupo L — 2026-06-27
     { timeA:"Croácia", gA:2, timeB:"Gana", gB:1 },  // Grupo L — 2026-06-27
   ];
-
 
 
 
@@ -162,20 +163,20 @@
   // Bracket Round of 32 (ids 73-88) — fonte: openfootball/worldcup/2026
   const BRACKET_R32 = [
     {id:73, posA:"2A", posB:"2B"},
-    {id:74, posA:"1E", posB:"3_1"},
+    {id:74, posA:"1E", posB:"3_7"},
     {id:75, posA:"1F", posB:"2C"},
     {id:76, posA:"1C", posB:"2F"},
     {id:77, posA:"1I", posB:"3_2"},
     {id:78, posA:"2E", posB:"2I"},
     {id:79, posA:"1A", posB:"3_3"},
-    {id:80, posA:"1L", posB:"3_4"},
+    {id:80, posA:"1L", posB:"3_1"},
     {id:81, posA:"1D", posB:"3_5"},
-    {id:82, posA:"1G", posB:"3_6"},
+    {id:82, posA:"1G", posB:"3_8"},
     {id:83, posA:"2K", posB:"2L"},
     {id:84, posA:"1H", posB:"2J"},
-    {id:85, posA:"1B", posB:"3_7"},
+    {id:85, posA:"1B", posB:"3_6"},
     {id:86, posA:"1J", posB:"2H"},
-    {id:87, posA:"1K", posB:"3_8"},
+    {id:87, posA:"1K", posB:"3_4"},
     {id:88, posA:"2D", posB:"2G"}
   ];
   const BRACKET_R16 = [
