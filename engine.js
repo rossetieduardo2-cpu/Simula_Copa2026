@@ -44,7 +44,7 @@
   //   { timeA:"Brasil", gA:2, timeB:"Marrocos", gB:0 },
   // ===========================================================================
   const JOGOS_REALIZADOS = [
-    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-27 21:06
+    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-28 00:03
     // Fonte: https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
     { timeA:"México", gA:2, timeB:"África do Sul", gB:0 },  // Grupo A — 2026-06-11
     { timeA:"Coreia do Sul", gA:2, timeB:"República Tcheca", gB:1 },  // Grupo A — 2026-06-11
@@ -112,6 +112,8 @@
     { timeA:"Uruguai", gA:0, timeB:"Espanha", gB:1 },  // Grupo H — 2026-06-26
     { timeA:"Noruega", gA:1, timeB:"França", gB:4 },  // Grupo I — 2026-06-26
     { timeA:"Senegal", gA:5, timeB:"Iraque", gB:0 },  // Grupo I — 2026-06-26
+    { timeA:"Colômbia", gA:0, timeB:"Portugal", gB:0 },  // Grupo K — 2026-06-27
+    { timeA:"Rep. Dem. do Congo", gA:3, timeB:"Uzbequistão", gB:1 },  // Grupo K — 2026-06-27
     { timeA:"Panamá", gA:0, timeB:"Inglaterra", gB:2 },  // Grupo L — 2026-06-27
     { timeA:"Croácia", gA:2, timeB:"Gana", gB:1 },  // Grupo L — 2026-06-27
   ];
