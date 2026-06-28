@@ -228,17 +228,23 @@
   };
 
   // ---- Estado mutável dos ratings (editável pelo usuário) -------------------
-  // Clona profundamente os ratings-base; window.TEAMS é o que a engine lê.
+  // O motor agora usa um ÚNICO rating geral por time (campo `overall`).
+  // Ele é inicializado pela média dos 4 atributos originais do SOFIFA
+  // (Goleiro/Defesa/Meio/Ataque), mas a partir daqui o jogo todo roda só
+  // em cima desse número — os 4 atributos originais ficam guardados apenas
+  // como referência/ponto de partida, não são mais usados pelo motor.
+  function overallBase(t){
+    return BASE_TEAMS[t].overall;
+  }
   function cloneBaseTeams(){
     const out = {};
-    for (const k in BASE_TEAMS) out[k] = Object.assign({}, BASE_TEAMS[k]);
+    for (const k in BASE_TEAMS) out[k] = { overall: overallBase(k) };
     return out;
   }
   let TEAMS = cloneBaseTeams();
 
   function overall(t){
-    const r = TEAMS[t];
-    return Math.round((r.ataque + r.meio + r.defesa + r.goleiro) / 4);
+    return TEAMS[t].overall;
   }
 
   // =====================================================================
@@ -257,9 +263,14 @@
 
   // =====================================================================
   // sim_jogo — motor de disputa de posse (random walk com barreira)
-  // Fiel ao sim_jogo() do R: mesmas 5 razões logísticas, mesmo vetor de
-  // campo (frac.campo posições de cada lado + meio + 2 extremos goleiro/
-  // ataque), mesmo loop de frac.tempo ciclos.
+  //
+  // Versão com RATING ÚNICO: cada time tem um só número (overall). A
+  // probabilidade de ganhar a disputa em qualquer ponto do campo é a
+  // mesma em todo o campo (não há mais confrontos setoriais Goleiro vs
+  // Ataque, Defesa vs Ataque etc. — só um confronto geral overall x overall).
+  // A estrutura de "campo com frac.campo posições + barreira" é mantida
+  // por fidelidade ao motor original, mas o vetor de probabilidades por
+  // posição agora é uniforme (todas as posições usam a mesma razão).
   // =====================================================================
   function simJogo(t1, t2, rng, opts){
     opts = opts || {};
@@ -268,38 +279,18 @@
 
     const r1 = TEAMS[t1], r2 = TEAMS[t2];
 
-    const raw = [
-      r1.goleiro / (r1.goleiro + r2.ataque),
-      r1.defesa  / (r1.defesa  + r2.ataque),
-      r1.meio    / (r1.meio    + r2.meio),
-      r1.ataque  / (r1.ataque  + r2.defesa),
-      r1.ataque  / (r1.ataque  + r2.goleiro)
-    ];
-    // logit -> *fracRat -> sigmoid (com fracRat=1 é identidade, mas mantemos
-    // a transformação para fidelidade caso o usuário queira variar o motor)
-    const rat = raw.map(p => {
-      const logit = Math.log(p / (1 - p));
-      const scaled = fracRat * logit;
-      return Math.exp(scaled) / (1 + Math.exp(scaled));
-    });
-    const [gA2, dA2, mM2, aD2, aG2] = rat;
+    const pBase = r1.overall / (r1.overall + r2.overall);
+    const logit = Math.log(pBase / (1 - pBase));
+    const scaled = fracRat * logit;
+    const p = Math.exp(scaled) / (1 + Math.exp(scaled));
 
-    const vec = [];
-    vec.push(gA2);
-    for (let i=0;i<fracCampo;i++) vec.push(dA2);
+    // Campo uniforme: mesma probabilidade em todas as posições.
     const midLen = Math.floor(fracCampo/2)*2 + 1;
-    for (let i=0;i<midLen;i++) vec.push(mM2);
-    for (let i=0;i<fracCampo;i++) vec.push(aD2);
-    vec.push(aG2);
-
-    const n = vec.length;
+    const n = 1 + fracCampo + midLen + fracCampo + 1;
     const half = Math.floor(n/2);
-    const center = (n-1)/2; // 0-indexed center position in vec
 
     let pos = 0, gA = 0, gB = 0;
     for (let i=0;i<fracTempo;i++){
-      const idx = Math.round(pos + center);
-      const p = vec[idx];
       const disputa = (rng() < p) ? 1 : -1;
       pos += disputa;
       if (Math.abs(pos) > half){
@@ -310,7 +301,7 @@
 
     let winner, pen = false;
     if (!permiteEmpate && gA === gB){
-      const pPen = r1.ataque / (r1.ataque + r2.ataque);
+      const pPen = r1.overall / (r1.overall + r2.overall);
       winner = (rng() < pPen) ? t1 : t2;
       pen = true;
     } else {
@@ -324,8 +315,7 @@
   // Sistema de penalização por zebra (fiel ao R)
   // =====================================================================
   function forcaMedia(t){
-    const r = TEAMS[t];
-    return (r.goleiro + r.defesa + r.meio + r.ataque) / 4;
+    return TEAMS[t].overall;
   }
 
   function calcularPenalidadeZebra(tA, tB, gA, gB, penalidadesAtivas){
@@ -354,16 +344,13 @@
 
   // Aplica penalidades ativas, gerando ratings temporários (não mutam TEAMS base)
   function aplicarPenalidades(penalidadesAtivas){
-    const overrides = {}; // time -> {ataque,meio,defesa,goleiro} ajustado
+    const overrides = {}; // time -> {overall} ajustado
     for (const t in penalidadesAtivas){
       const soma = penalidadesAtivas[t].reduce((a,b)=>a+b, 0);
       let fator = 1 - soma;
       fator = Math.max(fator, 0.5);
       const base = TEAMS[t];
-      overrides[t] = {
-        ataque: base.ataque * fator, meio: base.meio * fator,
-        defesa: base.defesa * fator, goleiro: base.goleiro * fator
-      };
+      overrides[t] = { overall: base.overall * fator };
     }
     return overrides;
   }
@@ -778,10 +765,10 @@
   window.CopaEngine = {
     GRUPOS, FLAGS, BASE_TEAMS, JOGOS_REALIZADOS,
     getTeams: () => TEAMS,
-    setTeamAttr: (team, attr, val) => { TEAMS[team][attr] = val; },
-    resetTeam: (team) => { TEAMS[team] = Object.assign({}, BASE_TEAMS[team]); },
+    setOverall: (team, val) => { TEAMS[team].overall = val; },
+    resetTeam: (team) => { TEAMS[team] = { overall: overallBase(team) }; },
     resetAll: () => { TEAMS = cloneBaseTeams(); },
-    overall,
+    overall, overallBase,
     mulberry32,
     simJogo, simularCopa, simularMonteCarlo, simularTrajetoria,
     LABEL_FASE_FINAL, ORDEM_FASE_FINAL,

@@ -35,7 +35,7 @@
           <div>
             <div class="section-num">01 — ELENCO</div>
             <h2 class="section-title">Ratings das 48 seleções</h2>
-            <p class="section-desc">Clique em qualquer time para ajustar Goleiro, Defesa, Meio e Ataque (escala 0–99, padrão SOFIFA). As mudanças entram em vigor na próxima simulação.</p>
+            <p class="section-desc">Clique em qualquer time para ajustar seu Rating Geral (escala 0–99, ponto de partida calculado pela média dos atributos SOFIFA). As mudanças entram em vigor na próxima simulação.</p>
           </div>
           <button class="btn btn-ghost" id="btn-reset-all">↺ Restaurar todos os ratings originais</button>
         </div>
@@ -158,34 +158,26 @@
   }
 
   // ---------------------------------------------------------------------
-  // RATING EDITOR
+  // RATING EDITOR — agora com um único parâmetro: Rating Geral (overall)
   // ---------------------------------------------------------------------
-  function attrRowHTML(team, attrKey, attrLabel, value){
-    return `
-      <div class="attr-row">
-        <label>${attrLabel}</label>
-        <input type="range" min="40" max="99" value="${value}"
-               data-team="${esc(team)}" data-attr="${attrKey}" class="attr-slider">
-        <div class="attr-val" data-team-val="${esc(team)}" data-attr-val="${attrKey}">${value}</div>
-      </div>`;
-  }
-
   function teamRowHTML(team){
-    const r = E.getTeams()[team];
     const isOpen = state.openTeam === team;
+    const ov = E.overall(team);
     return `
       <div class="team-row" data-team-row="${esc(team)}">
         <div class="t-name" data-toggle-team="${esc(team)}">
           <span class="t-flag">${flag(team)}</span>
           <span>${esc(team)}</span>
         </div>
-        <div class="t-overall" data-overall="${esc(team)}">${E.overall(team)}</div>
+        <div class="t-overall" data-overall="${esc(team)}">${ov}</div>
       </div>
       <div class="team-edit ${isOpen ? 'open' : ''}" data-edit-panel="${esc(team)}">
-        ${attrRowHTML(team,'goleiro','GOL', r.goleiro)}
-        ${attrRowHTML(team,'defesa','DEF', r.defesa)}
-        ${attrRowHTML(team,'meio','MEIO', r.meio)}
-        ${attrRowHTML(team,'ataque','ATQ', r.ataque)}
+        <div class="attr-row">
+          <label>RATING</label>
+          <input type="range" min="40" max="99" value="${ov}"
+                 data-team="${esc(team)}" class="attr-slider overall-slider">
+          <div class="attr-val" data-team-val="${esc(team)}">${ov}</div>
+        </div>
         <button class="reset-link" data-reset-team="${esc(team)}">restaurar rating original deste time</button>
       </div>`;
   }
@@ -218,10 +210,9 @@
     document.querySelectorAll('.attr-slider').forEach(el => {
       el.addEventListener('input', () => {
         const team = el.getAttribute('data-team');
-        const attr = el.getAttribute('data-attr');
         const val = parseInt(el.value, 10);
-        E.setTeamAttr(team, attr, val);
-        document.querySelector(`[data-team-val="${cssEsc(team)}"][data-attr-val="${attr}"]`).textContent = val;
+        E.setOverall(team, val);
+        document.querySelector(`[data-team-val="${cssEsc(team)}"]`).textContent = val;
         document.querySelector(`[data-overall="${cssEsc(team)}"]`).textContent = E.overall(team);
       });
     });
