@@ -130,6 +130,8 @@
     { timeA:"Holanda", gA:1, timeB:"Marrocos", gB:1, vencedor:"Marrocos" },  // Round of 32 — 2026-06-29 (pênaltis 2-3)
     { timeA:"Brasil", gA:2, timeB:"Japão", gB:1 },  // Round of 32 — 2026-06-29
     { timeA: "Noruega", gA:2, timeB:"Costa do Marfim", gB:1},
+    { timeA: "França", gA:3, timeB:"Suécia", gB:0},
+    
   ];
 
 
