@@ -29,22 +29,29 @@
   // ===========================================================================
   // JOGOS JÁ REALIZADOS — edite esta lista manualmente conforme a Copa avança.
   //
-  // Cada linha é um confronto da FASE DE GRUPOS já disputado, com o placar
-  // real. A simulação usa esse placar (sem rodar o motor) para esse confronto,
-  // e simula apenas os jogos do grupo que ainda não aparecem aqui — igual ao
-  // que o script R fazia lendo JOGOS_REALIZADOS / buscar_jogo_real().
+  // Cada linha é um confronto JÁ DISPUTADO (fase de grupos OU mata-mata), com
+  // o placar real. A simulação usa esse placar (sem rodar o motor) para esse
+  // confronto específico, e simula normalmente tudo o que ainda não aconteceu.
   //
   // Use exatamente os nomes em português usados em GRUPOS (ex: "EUA", "Rep.
   // Dem. do Congo", "Bósnia", "Costa do Marfim", "República Tcheca"...).
   // A ordem dos dois times na linha não importa (gA é sempre do timeA, gB do
   // timeB, na ordem em que você escreveu).
   //
-  // Exemplo (deixe comentado // ou remova para "zerar" e simular tudo):
+  // FASE DE GRUPOS — placar pode empatar normalmente:
   //   { timeA:"México", gA:1, timeB:"EUA", gB:1 },
-  //   { timeA:"Brasil", gA:2, timeB:"Marrocos", gB:0 },
+  //
+  // MATA-MATA (Round of 32 em diante) — não há empate na vida real; some o
+  // placar normal (90 min) e, se o jogo foi decidido nos pênaltis (empate no
+  // placar normal), informe explicitamente quem venceu com `vencedor`:
+  //   { timeA:"Brasil", gA:2, timeB:"Japão", gB:1 },                          // vitória normal
+  //   { timeA:"Holanda", gA:1, timeB:"Marrocos", gB:1, vencedor:"Holanda" },  // foi a pênaltis
+  //
+  // Deixe comentado (//) ou remova uma linha para "zerar" e voltar a simular
+  // aquele confronto normalmente.
   // ===========================================================================
   const JOGOS_REALIZADOS = [
-    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-28 01:26
+    // Gerado por ATUALIZA_JOGOS_REALIZADOS.R em 2026-06-30 09:36
     // Fonte: https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json
     { timeA:"México", gA:2, timeB:"África do Sul", gB:0 },  // Grupo A — 2026-06-11
     { timeA:"Coreia do Sul", gA:2, timeB:"República Tcheca", gB:1 },  // Grupo A — 2026-06-11
@@ -118,29 +125,55 @@
     { timeA:"Rep. Dem. do Congo", gA:3, timeB:"Uzbequistão", gB:1 },  // Grupo K — 2026-06-27
     { timeA:"Panamá", gA:0, timeB:"Inglaterra", gB:2 },  // Grupo L — 2026-06-27
     { timeA:"Croácia", gA:2, timeB:"Gana", gB:1 },  // Grupo L — 2026-06-27
+    { timeA:"África do Sul", gA:0, timeB:"Canadá", gB:1 },  // Round of 32 — 2026-06-28
+    { timeA:"Alemanha", gA:1, timeB:"Paraguai", gB:1, vencedor:"Paraguai" },  // Round of 32 — 2026-06-29 (pênaltis 3-4)
+    { timeA:"Holanda", gA:1, timeB:"Marrocos", gB:1, vencedor:"Marrocos" },  // Round of 32 — 2026-06-29 (pênaltis 2-3)
+    { timeA:"Brasil", gA:2, timeB:"Japão", gB:1 },  // Round of 32 — 2026-06-29
   ];
 
 
 
-  // Índice rápido "TimeA__TimeB" -> {gA, gB} (e o inverso) para consulta O(1)
-  function buildJogosRealizadosIndex(lista){
+  // Times do mesmo grupo, usado para inferir automaticamente se uma linha de
+  // JOGOS_REALIZADOS é um jogo de GRUPO (mesmo grupo) ou de MATA-MATA (grupos
+  // diferentes) — não exige que você marque a fase manualmente em cada linha.
+  const GRUPO_DO_TIME = {};
+  for (const g in GRUPOS) for (const t of GRUPOS[g]) GRUPO_DO_TIME[t] = g;
+  function mesmoGrupo(tA, tB){ return GRUPO_DO_TIME[tA] && GRUPO_DO_TIME[tA] === GRUPO_DO_TIME[tB]; }
+
+  // Dois índices separados — essencial porque dois times do mesmo grupo podem
+  // se enfrentar de novo no mata-mata (ex: dois 3os colocados de grupos
+  // diferentes não se cruzam, mas um 1º e 2º do MESMO grupo eliminados em
+  // grupos diferentes do bracket podem teoricamente se reencontrar). Sem essa
+  // separação, o placar da fase de grupos seria incorretamente reaproveitado
+  // como se fosse o resultado do mata-mata (e vice-versa).
+  function buildJogosRealizadosIndex(lista, filtro){
     const idx = {};
     for (const j of lista){
-      idx[j.timeA + "__" + j.timeB] = { gA: j.gA, gB: j.gB };
-      idx[j.timeB + "__" + j.timeA] = { gA: j.gB, gB: j.gA };
+      if (!filtro(j.timeA, j.timeB)) continue;
+      idx[j.timeA + "__" + j.timeB] = { gA: j.gA, gB: j.gB, vencedor: j.vencedor || null };
+      idx[j.timeB + "__" + j.timeA] = { gA: j.gB, gB: j.gA, vencedor: j.vencedor || null };
     }
     return idx;
   }
-  let JOGOS_IDX = buildJogosRealizadosIndex(JOGOS_REALIZADOS);
+  const JOGOS_IDX_GRUPO     = buildJogosRealizadosIndex(JOGOS_REALIZADOS, mesmoGrupo);
+  const JOGOS_IDX_MATAMATA  = buildJogosRealizadosIndex(JOGOS_REALIZADOS, (a,b) => !mesmoGrupo(a,b));
 
-  // Retorna {gA, gB} se tA x tB (nessa ordem) já foi disputado, ou null.
-  function buscarJogoReal(tA, tB){
-    const r = JOGOS_IDX[tA + "__" + tB];
-    return r ? { gA: r.gA, gB: r.gB } : null;
+  // Retorna {gA, gB, vencedor} se tA x tB (nessa ordem) já foi disputado NA
+  // FASE DE GRUPOS, ou null.
+  function buscarJogoRealGrupo(tA, tB){
+    const r = JOGOS_IDX_GRUPO[tA + "__" + tB];
+    return r ? { gA: r.gA, gB: r.gB, vencedor: r.vencedor } : null;
+  }
+  // Retorna {gA, gB, vencedor} se tA x tB (nessa ordem) já foi disputado NO
+  // MATA-MATA, ou null.
+  function buscarJogoRealMataMata(tA, tB){
+    const r = JOGOS_IDX_MATAMATA[tA + "__" + tB];
+    return r ? { gA: r.gA, gB: r.gB, vencedor: r.vencedor } : null;
   }
 
-  // Valida a lista (nomes de times existem e fazem parte do mesmo grupo) —
-  // ajuda a pegar erros de digitação em JOGOS_REALIZADOS no console do browser.
+  // Valida a lista (nomes de times existem; placares de mata-mata empatados
+  // têm vencedor definido) — ajuda a pegar erros de digitação/esquecimento
+  // em JOGOS_REALIZADOS no console do browser.
   function validarJogosRealizados(){
     const todosTimes = new Set(Object.values(GRUPOS).flat());
     const grupoDoTime = {};
@@ -149,8 +182,8 @@
     JOGOS_REALIZADOS.forEach((j, i) => {
       if (!todosTimes.has(j.timeA)) problemas.push(`Linha ${i+1}: time "${j.timeA}" não encontrado em GRUPOS.`);
       if (!todosTimes.has(j.timeB)) problemas.push(`Linha ${i+1}: time "${j.timeB}" não encontrado em GRUPOS.`);
-      if (todosTimes.has(j.timeA) && todosTimes.has(j.timeB) && grupoDoTime[j.timeA] !== grupoDoTime[j.timeB]){
-        problemas.push(`Linha ${i+1}: "${j.timeA}" e "${j.timeB}" estão em grupos diferentes (${grupoDoTime[j.timeA]} x ${grupoDoTime[j.timeB]}) — só jogos de grupo são suportados aqui.`);
+      if (j.gA === j.gB && j.vencedor && j.vencedor !== j.timeA && j.vencedor !== j.timeB){
+        problemas.push(`Linha ${i+1}: "vencedor" ("${j.vencedor}") não é nem "${j.timeA}" nem "${j.timeB}".`);
       }
     });
     if (problemas.length){
@@ -385,7 +418,7 @@
 
       for (const par of pares){
         const tA = times[par[0]], tB = times[par[1]];
-        const jogoReal = buscarJogoReal(tA, tB);
+        const jogoReal = buscarJogoRealGrupo(tA, tB);
 
         let r;
         if (jogoReal){
@@ -430,11 +463,35 @@
     for (const jogo of bracket){
       const tA = resolverSlot(jogo.wA || jogo.posA, classificados);
       const tB = resolverSlot(jogo.wB || jogo.posB, classificados);
-      const r = withPenalties(overrides, () => simJogo(tA, tB, rng, {permiteEmpate:false}));
+      const jogoReal = buscarJogoRealMataMata(tA, tB);
+
+      let r;
+      if (jogoReal){
+        const gA = jogoReal.gA, gB = jogoReal.gB;
+        // Mata-mata não permite empate: se o placar real empatou (foi a
+        // pênaltis), o vencedor real precisa ser informado explicitamente
+        // via campo `vencedor` na linha de JOGOS_REALIZADOS — sem isso,
+        // assume-se que não houve empate (gA != gB).
+        let winner;
+        if (gA === gB){
+          winner = jogoReal.vencedor || tA; // fallback defensivo, ver aviso no console abaixo
+          if (!jogoReal.vencedor){
+            console.warn(`[CopaEngine] Jogo real ${tA} ${gA}-${gB} ${tB} empatou no mata-mata mas não tem "vencedor" definido em JOGOS_REALIZADOS — assumindo ${tA} (provavelmente errado, corrija a linha adicionando vencedor:"${tA}" ou vencedor:"${tB}").`);
+          }
+        } else {
+          winner = gA > gB ? tA : tB;
+        }
+        r = { tA, tB, gA, gB, winner, pen:false, real:true };
+        // Resultados reais não alimentam o sistema de zebra (igual à fase de grupos)
+      } else {
+        r = withPenalties(overrides, () => simJogo(tA, tB, rng, {permiteEmpate:false}));
+        r.real = false;
+        penalidadesAtivas = calcularPenalidadeZebra(tA, tB, r.gA, r.gB, penalidadesAtivas);
+      }
+
       resultados["W"+jogo.id] = r.winner;
       resultados["L"+jogo.id] = (r.winner === tA) ? tB : tA;
       resultados["R"+jogo.id] = r;
-      penalidadesAtivas = calcularPenalidadeZebra(tA, tB, r.gA, r.gB, penalidadesAtivas);
     }
     penalidadesAtivas = decairPenalidades(penalidadesAtivas);
     return { resultados, penalidadesAtivas };

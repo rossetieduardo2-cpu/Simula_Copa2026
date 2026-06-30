@@ -67,8 +67,9 @@
     if (!r) return `<div class="bmatch"><div class="brow"><span class="bname">—</span></div></div>`;
     const aWin = r.winner === r.tA;
     const bWin = r.winner === r.tB;
+    const realClass = r.real ? 'real-match' : '';
     return `
-      <div class="bmatch ${isFinal ? 'final-card' : ''}">
+      <div class="bmatch ${isFinal ? 'final-card' : ''} ${realClass}">
         <div class="brow ${aWin ? 'winner':''}"><span class="bname">${flag(r.tA)} ${esc(r.tA)}</span><span class="bscore">${r.gA}</span></div>
         <div class="brow ${bWin ? 'winner':''}"><span class="bname">${flag(r.tB)} ${esc(r.tB)}</span><span class="bscore">${r.gB}</span></div>
       </div>`;
