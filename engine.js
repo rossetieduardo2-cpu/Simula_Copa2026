@@ -21,7 +21,7 @@
   const FRAC_CAMPO = 4;
   const FRAC_TEMPO = 200;
 
-  const PENALIZACAO_ATIVA = true;
+  const PENALIZACAO_ATIVA = false;
   const K_PENALIDADE      = 0.10;
   const DECAY_PENALIDADE  = .9;
   const PENALIDADE_MIN    = 0.001;
