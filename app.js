@@ -35,7 +35,7 @@
           <div>
             <div class="section-num">01 — ELENCO</div>
             <h2 class="section-title">Ratings das 48 seleções</h2>
-            <p class="section-desc">Clique em qualquer time para ajustar seu Rating Geral (escala 0–99, ponto de partida calculado pela média dos atributos SOFIFA). As mudanças entram em vigor na próxima simulação.</p>
+            <p class="section-desc">Clique em qualquer time para ajustar seu Rating Geral (escala 0–99). As mudanças entram em vigor na próxima simulação.</p>
           </div>
           <button class="btn btn-ghost" id="btn-reset-all">↺ Restaurar todos os ratings originais</button>
         </div>
