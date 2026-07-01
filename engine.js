@@ -17,7 +17,7 @@
   const GRUPOS       = JSON.parse(document.getElementById('data-groups').textContent);
 
   // ---- Parâmetros do motor (idênticos ao R) --------------------------------
-  const FRAC_RAT   = .5;
+  const FRAC_RAT   = .6;
   const FRAC_CAMPO = 4;
   const FRAC_TEMPO = 200;
 
