@@ -132,6 +132,8 @@
     { timeA: "Noruega", gA:2, timeB:"Costa do Marfim", gB:1},
     { timeA: "França", gA:3, timeB:"Suécia", gB:0},
     { timeA: "México", gA:2, timeB: "Equador", gB:0},
+    { timeA: "Inglaterra", gA:2, timeB: "Rep. Dem. do Congo", gB:1},
+    
   ];
 
 
