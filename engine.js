@@ -131,7 +131,7 @@
     { timeA:"Brasil", gA:2, timeB:"Japão", gB:1 },  // Round of 32 — 2026-06-29
     { timeA: "Noruega", gA:2, timeB:"Costa do Marfim", gB:1},
     { timeA: "França", gA:3, timeB:"Suécia", gB:0},
-    
+    { timeA: "México", gA:2, timeB: "Equador", gB:0},
   ];
 
 
