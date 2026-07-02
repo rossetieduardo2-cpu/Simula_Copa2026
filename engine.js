@@ -135,6 +135,7 @@
     { timeA: "Inglaterra", gA:2, timeB: "Rep. Dem. do Congo", gB:1},
     { timeA:"Bélgica", gA:3, timeB:"Senegal", gB:2 },  
     { timeA:"EUA", gA:2, timeB:"Bósnia", gB:0 }, 
+    { timeA: "Espanha", gA:3, timeB: "Áustria", gB:0},
   ];
 
 
