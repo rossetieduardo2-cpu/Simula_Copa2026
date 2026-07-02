@@ -133,7 +133,7 @@
     { timeA: "França", gA:3, timeB:"Suécia", gB:0},
     { timeA: "México", gA:2, timeB: "Equador", gB:0},
     { timeA: "Inglaterra", gA:2, timeB: "Rep. Dem. do Congo", gB:1},
-    { timeA:"Bélgica", gA:3, timeB:"Gana", gB:2 },  
+    { timeA:"Bélgica", gA:3, timeB:"Senegal", gB:2 },  
     { timeA:"EUA", gA:2, timeB:"Bósnia", gB:0 }, 
   ];
 
