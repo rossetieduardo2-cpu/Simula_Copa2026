@@ -137,6 +137,7 @@
     { timeA:"EUA", gA:2, timeB:"Bósnia", gB:0 }, 
     { timeA: "Espanha", gA:3, timeB: "Áustria", gB:0},
     { timeA: "Portugal", gA:2, timeB: "Croácia", gB:1},
+    { timeA: "Suíça", gA:2, timeB: "Argélia", gB:0},
   ];
 
 
