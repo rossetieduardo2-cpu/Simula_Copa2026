@@ -141,6 +141,7 @@
     { timeA: "Egito", gA:1, timeB: "Austrália", gB:1, vencedor: "Egito"},
     { timeA: "Argentina", gA:3, timeB: "Cabo Verde", gB: 2},
     { timeA: "Colômbia", gA: 1, timeB: "Gana", gB: 0},
+    { timeA: "Marrocos", gA: 3, timeB: "Canadá", gB:0},
   ];
 
 
