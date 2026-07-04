@@ -1,4 +1,4 @@
-// =============================================================================
+8// =============================================================================
 // SIMULADOR COPA DO MUNDO 2026 — Engine fiel ao script R original
 // (03_simulador_copa2026_rating_SOFIFA.R)
 //
@@ -139,6 +139,7 @@
     { timeA: "Portugal", gA:2, timeB: "Croácia", gB:1},
     { timeA: "Suíça", gA:2, timeB: "Argélia", gB:0},
     { timeA: "Egito", gA:1, timeB: "Austrália", gB:1, vencedor: "Egito"},
+    { timeA: "Argentina", gA:3, timeB: "Cabo Verde", gB: 2},
   ];
 
 
