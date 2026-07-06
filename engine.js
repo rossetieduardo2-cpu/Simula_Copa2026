@@ -143,6 +143,8 @@
     { timeA: "Colômbia", gA: 1, timeB: "Gana", gB: 0},
     { timeA: "Marrocos", gA: 3, timeB: "Canadá", gB:0},
     { timeA: "França", gA:1, timeB:"Paraguai", gB:0},
+    { timeA: "Brasil", gA:1, timeB:"Noruega", gB:2},
+    
   ];
 
 
