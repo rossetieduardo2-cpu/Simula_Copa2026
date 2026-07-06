@@ -145,7 +145,7 @@
     { timeA: "França", gA:1, timeB:"Paraguai", gB:0},
     { timeA: "Brasil", gA:1, timeB:"Noruega", gB:2},
     { timeA: "México", gA:2, timeB:"Inglaterra", gB:3},
-    
+    { timeA: "Espanha", gA: 1, timeB:"Portugal", gB:0},
     
   ];
 
