@@ -147,6 +147,8 @@
     { timeA: "México", gA:2, timeB:"Inglaterra", gB:3},
     { timeA: "Espanha", gA: 1, timeB:"Portugal", gB:0},
     { timeA: "Bélgica", gA: 4, timeB: "EUA", gB:1},
+    { timeA: "Argentina", gA:3, timeB: "Egito", gB: 2},
+
   ];
 
 
