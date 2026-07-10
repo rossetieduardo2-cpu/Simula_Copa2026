@@ -53,6 +53,10 @@
         <div class="toolbar">
           <button class="btn btn-primary" id="btn-run-single">▶ Simular copa (resultado único)</button>
           <div class="spacer"></div>
+          <label class="elo-toggle" title="Ativa a dinâmica ELO: cada jogo atualiza o rating da seleção (K=5, HA=6, máx=95). O rating médio final aparece nas tabelas de saída.">
+            <input type="checkbox" id="chk-use-elo">
+            <span>Dinâmica ELO</span>
+          </label>
           <div class="field-inline">
             <label>SIMULAÇÕES</label>
             <input type="number" id="input-mc-n" value="10000" min="10" max="1000000" step="10">
@@ -142,6 +146,9 @@
     });
     document.getElementById('btn-run-single').addEventListener('click', () => window.runSingle());
     document.getElementById('btn-run-mc').addEventListener('click', () => window.runMC());
+    document.getElementById('chk-use-elo').addEventListener('change', (ev) => {
+      E.setUseElo(ev.target.checked);
+    });
     document.getElementById('input-traj-team').addEventListener('change', (ev) => {
       state.trajTeam = ev.target.value;
     });

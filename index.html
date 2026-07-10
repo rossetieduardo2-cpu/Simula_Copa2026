@@ -519,6 +519,39 @@
   .opp-pct{ font-family:var(--mono); color:var(--giz); text-align:right; }
   .opp-win{ font-family:var(--mono); font-size:10.5px; color:var(--giz-faint); text-align:right; white-space:nowrap; }
 
+  /* ====== CHECKBOX ELO ====== */
+  .elo-toggle{
+    display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
+    font-family:var(--mono); font-size:12px; color:var(--giz-dim);
+    padding:8px 12px; border:1px solid var(--linha); border-radius:var(--radius);
+    background:var(--campo-800); white-space:nowrap;
+    transition:border-color .15s;
+  }
+  .elo-toggle:hover{ border-color:var(--ouro); }
+  .elo-toggle span{ color:var(--giz); }
+  .elo-toggle input[type="checkbox"]{
+    appearance:none; -webkit-appearance:none; width:15px; height:15px; flex:none;
+    border:1px solid var(--linha); border-radius:2px; background:var(--campo-900);
+    cursor:pointer; position:relative;
+  }
+  .elo-toggle input[type="checkbox"]:checked{ background:var(--ouro); border-color:var(--ouro); }
+  .elo-toggle input[type="checkbox"]:checked::after{
+    content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:11px; color:var(--campo-900); font-weight:700;
+  }
+
+  /* Coluna ELO nas tabelas de resultados */
+  .elo-col{
+    font-family:var(--mono); color:var(--ouro-bright); font-weight:600;
+  }
+
+  /* Badge ELO médio no cabeçalho de trajetória */
+  .traj-header-elo{
+    font-family:var(--mono); font-size:12px; color:var(--ouro-bright);
+    background:rgba(201,162,75,0.12); border:1px solid var(--ouro);
+    padding:4px 10px; border-radius:2px; margin-top:4px;
+  }
+
   .traj-filter-toggle{
     display:flex; align-items:center; gap:9px; cursor:pointer; user-select:none;
     font-family:var(--mono); font-size:12px; color:var(--giz-dim);

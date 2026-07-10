@@ -26,6 +26,12 @@
   const DECAY_PENALIDADE  = .9;
   const PENALIDADE_MIN    = 0.001;
 
+  // ---- Parâmetros ELO (fixos) ----------------------------------------------
+  const ELO_K   = 1;    // fator de atualização por jogo
+  const ELO_HA  = 3;    // ajuste de home advantage na fórmula logística
+  const ELO_MAX = 95;   // teto de rating ELO (não ultrapassa este valor)
+  let USE_ELO   = false; // controlado pelo checkbox da UI
+
   // ===========================================================================
   // JOGOS JÁ REALIZADOS — edite esta lista manualmente conforme a Copa avança.
   //
@@ -150,7 +156,7 @@
     { timeA: "Argentina", gA:3, timeB: "Egito", gB: 2},
     { timeA: "Colômbia", gA: 0, timeB: "Suíça", gB: 0, vencedor:"Suíça"},
     { timeA: "França", gA: 2, timeB: "Marrocos", gB: 0},
-    { timeA: "Bélgica", gA: 1, timeB: "Espanha", gB:2},
+    { timeA: "Espanha", gA: 2, timeB:"Bélgica", gB:1},
 
   ];
 
@@ -304,9 +310,79 @@
   }
 
   // =====================================================================
-  // RNG seedável (mulberry32) — para permitir Monte Carlo reprodutível
-  // e não depender de Math.random global.
+  // DINÂMICA ELO
+  //
+  // O ELO parte do rating atual (slider) como ponto de partida.
+  // Cada jogo — real ou simulado — atualiza os ratings dos dois times.
+  // Os jogos já realizados (JOGOS_REALIZADOS) são processados UMA VEZ
+  // para gerar ELO_POS_REAIS: o estado de rating que cada time carrega
+  // ao entrar na parte simulada do torneio. Cada simulação Monte Carlo
+  // parte desse ELO_POS_REAIS e evolui de forma independente.
   // =====================================================================
+
+  // Probabilidade esperada de vitória do timeA dada a diferença de ELO.
+  // HA (home advantage) é somado ao ELO do timeA na fórmula — como todos
+  // os jogos da Copa são em campo neutro, HA serve apenas como ajuste
+  // de calibração da curva logística (parâmetro fixo em 6).
+  function pEsperadaElo(eloA, eloB){
+    return 1 / (1 + Math.pow(10, (eloB - eloA + ELO_HA) / 400));
+  }
+
+  // Atualiza o eloState in-place após um jogo.
+  // resultado: 1 = vitória de tA, 0 = vitória de tB, 0.5 = empate.
+  function atualizarElo(tA, tB, resultado, eloState){
+    const eloA = eloState[tA], eloB = eloState[tB];
+    const pe = pEsperadaElo(eloA, eloB);
+    const deltaA = ELO_K * (resultado - pe);
+    const deltaB = ELO_K * ((1 - resultado) - (1 - pe));
+    eloState[tA] = Math.min(ELO_MAX, eloA + deltaA);
+    eloState[tB] = Math.min(ELO_MAX, eloB + deltaB);
+  }
+
+  // Constrói o estado ELO inicial a partir dos ratings atuais (sliders),
+  // depois processa todos os JOGOS_REALIZADOS em ordem, gerando
+  // ELO_POS_REAIS — o ponto de partida de cada simulação quando USE_ELO.
+  //
+  // Chamado automaticamente quando USE_ELO é ativado, e também cada vez
+  // que ratings são editados (via setOverall/resetTeam/resetAll), para
+  // garantir que as edições se refletem no ELO base.
+  function buildEloPosReais(){
+    const state = {};
+    for (const t in TEAMS) state[t] = TEAMS[t].overall;
+
+    // Processa jogos reais em ordem — usamos a lista bruta JOGOS_REALIZADOS
+    // (que inclui grupos e mata-mata), sem distinção de fase, pois o ELO
+    // deve refletir tudo que já aconteceu.
+    for (const j of JOGOS_REALIZADOS){
+      if (!(j.timeA in state) || !(j.timeB in state)) continue;
+      // Determina resultado real: 1 = timeA venceu, 0 = timeB venceu, 0.5 = empate
+      let resultado;
+      if (j.gA > j.gB) resultado = 1;
+      else if (j.gA < j.gB) resultado = 0;
+      else if (j.vencedor === j.timeA) resultado = 1;
+      else if (j.vencedor === j.timeB) resultado = 0;
+      else resultado = 0.5; // empate real (fase de grupos)
+      atualizarElo(j.timeA, j.timeB, resultado, state);
+    }
+    return state;
+  }
+
+  // Estado ELO após os jogos reais — reconstruído ao ativar ELO ou editar ratings.
+  let ELO_POS_REAIS = null;
+  function getEloPosReais(){
+    if (!ELO_POS_REAIS) ELO_POS_REAIS = buildEloPosReais();
+    return ELO_POS_REAIS;
+  }
+  function invalidarEloPosReais(){ ELO_POS_REAIS = null; }
+
+  // Clona um eloState (para não mutar entre simulações).
+  function clonarElo(state){
+    const out = {};
+    for (const t in state) out[t] = state[t];
+    return out;
+  }
+
+
   function mulberry32(seed){
     let a = seed >>> 0;
     return function(){
@@ -320,22 +396,21 @@
   // =====================================================================
   // sim_jogo — motor de disputa de posse (random walk com barreira)
   //
-  // Versão com RATING ÚNICO: cada time tem um só número (overall). A
-  // probabilidade de ganhar a disputa em qualquer ponto do campo é a
-  // mesma em todo o campo (não há mais confrontos setoriais Goleiro vs
-  // Ataque, Defesa vs Ataque etc. — só um confronto geral overall x overall).
-  // A estrutura de "campo com frac.campo posições + barreira" é mantida
-  // por fidelidade ao motor original, mas o vetor de probabilidades por
-  // posição agora é uniforme (todas as posições usam a mesma razão).
+  // Versão com RATING ÚNICO. Quando USE_ELO=true, `eloState` deve ser
+  // passado: o rating usado na probabilidade é o ELO atual daquele time
+  // no eloState (em vez de TEAMS[t].overall), e o ELO é atualizado
+  // in-place após cada jogo simulado.
   // =====================================================================
-  function simJogo(t1, t2, rng, opts){
+  function simJogo(t1, t2, rng, opts, eloState){
     opts = opts || {};
     const permiteEmpate = opts.permiteEmpate !== false;
     const fracCampo = FRAC_CAMPO, fracTempo = FRAC_TEMPO, fracRat = FRAC_RAT;
 
-    const r1 = TEAMS[t1], r2 = TEAMS[t2];
+    // Rating efetivo: ELO se ativado e disponível, senão overall base
+    const rat1 = (USE_ELO && eloState) ? eloState[t1] : TEAMS[t1].overall;
+    const rat2 = (USE_ELO && eloState) ? eloState[t2] : TEAMS[t2].overall;
 
-    const pBase = r1.overall / (r1.overall + r2.overall);
+    const pBase = rat1 / (rat1 + rat2);
     const logit = Math.log(pBase / (1 - pBase));
     const scaled = fracRat * logit;
     const p = Math.exp(scaled) / (1 + Math.exp(scaled));
@@ -357,11 +432,18 @@
 
     let winner, pen = false;
     if (!permiteEmpate && gA === gB){
-      const pPen = r1.overall / (r1.overall + r2.overall);
+      const pPen = rat1 / (rat1 + rat2);
       winner = (rng() < pPen) ? t1 : t2;
       pen = true;
     } else {
       winner = gA > gB ? t1 : (gA < gB ? t2 : null);
+    }
+
+    // Atualiza ELO após jogo simulado (jogos reais já foram processados
+    // em buildEloPosReais, não se reprocessam aqui)
+    if (USE_ELO && eloState){
+      const resultado = winner === t1 ? 1 : (winner === t2 ? 0 : 0.5);
+      atualizarElo(t1, t2, resultado, eloState);
     }
 
     return { tA:t1, tB:t2, gA, gB, winner, pen };
@@ -412,10 +494,10 @@
   }
 
   // Executa fn com TEAMS temporariamente sobrescrito pelos overrides de penalidade
-  function withPenalties(overrides, fn){
+  function withPenalties(overrides, fn, eloState){
     const saved = {};
     for (const t in overrides){ saved[t] = TEAMS[t]; TEAMS[t] = overrides[t]; }
-    try { return fn(); }
+    try { return fn(eloState); }
     finally { for (const t in overrides){ TEAMS[t] = saved[t]; } }
   }
 
@@ -423,7 +505,7 @@
   // sim_grupo — fase de grupos rodada a rodada (R1, R2, R3)
   // Padrão: R1: 1v2,3v4 | R2: 1v3,2v4 | R3: 1v4,2v3
   // =====================================================================
-  function simGrupo(letra, penalidadesAtivas, rng){
+  function simGrupo(letra, penalidadesAtivas, rng, eloState){
     const times = GRUPOS[letra];
     const tab = times.map(t => ({time:t, pts:0, gf:0, gc:0, gd:0, j:0}));
     const byName = {}; tab.forEach(r => byName[r.time] = r);
@@ -450,7 +532,7 @@
           r = { tA, tB, gA, gB, winner, pen:false, real:true };
           // Resultados reais não alimentam o sistema de zebra (igual ao R)
         } else {
-          r = withPenalties(overrides, () => simJogo(tA, tB, rng, {permiteEmpate:true}));
+          r = withPenalties(overrides, (es) => simJogo(tA, tB, rng, {permiteEmpate:true}, es), eloState);
           r.real = false;
           penalidadesAtivas = calcularPenalidadeZebra(tA, tB, r.gA, r.gB, penalidadesAtivas);
         }
@@ -479,7 +561,7 @@
   // =====================================================================
   function resolverSlot(slot, classificados){ return classificados[slot]; }
 
-  function simFase(bracket, classificados, penalidadesAtivas, rng){
+  function simFase(bracket, classificados, penalidadesAtivas, rng, eloState){
     const resultados = {};
     const overrides = aplicarPenalidades(penalidadesAtivas);
 
@@ -491,13 +573,9 @@
       let r;
       if (jogoReal){
         const gA = jogoReal.gA, gB = jogoReal.gB;
-        // Mata-mata não permite empate: se o placar real empatou (foi a
-        // pênaltis), o vencedor real precisa ser informado explicitamente
-        // via campo `vencedor` na linha de JOGOS_REALIZADOS — sem isso,
-        // assume-se que não houve empate (gA != gB).
         let winner;
         if (gA === gB){
-          winner = jogoReal.vencedor || tA; // fallback defensivo, ver aviso no console abaixo
+          winner = jogoReal.vencedor || tA;
           if (!jogoReal.vencedor){
             console.warn(`[CopaEngine] Jogo real ${tA} ${gA}-${gB} ${tB} empatou no mata-mata mas não tem "vencedor" definido em JOGOS_REALIZADOS — assumindo ${tA} (provavelmente errado, corrija a linha adicionando vencedor:"${tA}" ou vencedor:"${tB}").`);
           }
@@ -505,9 +583,8 @@
           winner = gA > gB ? tA : tB;
         }
         r = { tA, tB, gA, gB, winner, pen:false, real:true };
-        // Resultados reais não alimentam o sistema de zebra (igual à fase de grupos)
       } else {
-        r = withPenalties(overrides, () => simJogo(tA, tB, rng, {permiteEmpate:false}));
+        r = withPenalties(overrides, (es) => simJogo(tA, tB, rng, {permiteEmpate:false}, es), eloState);
         r.real = false;
         penalidadesAtivas = calcularPenalidadeZebra(tA, tB, r.gA, r.gB, penalidadesAtivas);
       }
@@ -527,8 +604,11 @@
     const resultadoGrupos = {};
     let penalidadesAtivas = {};
 
+    // Se ELO ativo, cada simulação parte do estado pós-jogos-reais (clone)
+    const eloState = USE_ELO ? clonarElo(getEloPosReais()) : null;
+
     for (const g of Object.keys(GRUPOS)){
-      const resG = simGrupo(g, penalidadesAtivas, rng);
+      const resG = simGrupo(g, penalidadesAtivas, rng, eloState);
       resultadoGrupos[g] = resG;
       penalidadesAtivas = resG.penalidadesAtivas;
     }
@@ -547,31 +627,31 @@
     const melhores3os = terceiros.slice(0,8);
     melhores3os.forEach((row,i) => { classificados["3_"+(i+1)] = row.time; });
 
-    const resR32 = simFase(BRACKET_R32, classificados, penalidadesAtivas, rng);
+    const resR32 = simFase(BRACKET_R32, classificados, penalidadesAtivas, rng, eloState);
     Object.assign(classificados, resR32.resultados);
     penalidadesAtivas = resR32.penalidadesAtivas;
 
-    const resR16 = simFase(BRACKET_R16, classificados, penalidadesAtivas, rng);
+    const resR16 = simFase(BRACKET_R16, classificados, penalidadesAtivas, rng, eloState);
     Object.assign(classificados, resR16.resultados);
     penalidadesAtivas = resR16.penalidadesAtivas;
 
-    const resQF = simFase(BRACKET_QF, classificados, penalidadesAtivas, rng);
+    const resQF = simFase(BRACKET_QF, classificados, penalidadesAtivas, rng, eloState);
     Object.assign(classificados, resQF.resultados);
     penalidadesAtivas = resQF.penalidadesAtivas;
 
-    const resSF = simFase(BRACKET_SF, classificados, penalidadesAtivas, rng);
+    const resSF = simFase(BRACKET_SF, classificados, penalidadesAtivas, rng, eloState);
     Object.assign(classificados, resSF.resultados);
     penalidadesAtivas = resSF.penalidadesAtivas;
 
     const overridesPosSemis = aplicarPenalidades(penalidadesAtivas);
 
     const t3a = classificados["L101"], t3b = classificados["L102"];
-    const r3o = withPenalties(overridesPosSemis, () => simJogo(t3a, t3b, rng, {permiteEmpate:false}));
+    const r3o = withPenalties(overridesPosSemis, (es) => simJogo(t3a, t3b, rng, {permiteEmpate:false}, es), eloState);
     const terceiro = r3o.winner;
     const quarto = (r3o.winner === t3a) ? t3b : t3a;
 
     const tFinA = classificados["W101"], tFinB = classificados["W102"];
-    const rFin = withPenalties(overridesPosSemis, () => simJogo(tFinA, tFinB, rng, {permiteEmpate:false}));
+    const rFin = withPenalties(overridesPosSemis, (es) => simJogo(tFinA, tFinB, rng, {permiteEmpate:false}, es), eloState);
     const campeao = rFin.winner;
     const vice = (rFin.winner === tFinA) ? tFinB : tFinA;
 
@@ -582,7 +662,8 @@
       classificados,
       r32: resR32.resultados, r16: resR16.resultados, qf: resQF.resultados, sf: resSF.resultados,
       r3o, rFin,
-      penalidadesFinais: penalidadesAtivas
+      penalidadesFinais: penalidadesAtivas,
+      eloFinal: eloState  // null quando USE_ELO=false
     };
   }
 
@@ -593,7 +674,12 @@
     const rng = mulberry32(seed);
     const todosTimes = Object.values(GRUPOS).flat();
     const contadores = {campeao:{}, vice:{}, terceiro:{}, quarto:{}, semi:{}, quartas:{}, oitavas:{}};
-    todosTimes.forEach(t => { contadores.campeao[t]=0; contadores.vice[t]=0; contadores.terceiro[t]=0; contadores.quarto[t]=0; contadores.semi[t]=0;contadores.quartas[t]=0;contadores.oitavas[t]=0; });
+    const somaElo = {};  // acumula ELO final de cada time ao longo das sims
+    todosTimes.forEach(t => {
+      contadores.campeao[t]=0; contadores.vice[t]=0; contadores.terceiro[t]=0;
+      contadores.quarto[t]=0; contadores.semi[t]=0; contadores.quartas[t]=0; contadores.oitavas[t]=0;
+      somaElo[t] = 0;
+    });
 
     for (let i=0;i<N;i++){
       const r = simularCopa(rng);
@@ -602,6 +688,12 @@
       contadores.terceiro[r.terceiro]++;
       contadores.quarto[r.quarto]++;
       [r.campeao, r.vice, r.terceiro, r.quarto].forEach(t => contadores.semi[t]++);
+
+      // Acumula ELO final (quando USE_ELO, r.eloFinal é o estado ao fim da copa)
+      if (USE_ELO && r.eloFinal){
+        todosTimes.forEach(t => { if (r.eloFinal[t] !== undefined) somaElo[t] += r.eloFinal[t]; });
+      }
+
       if (onProgress && (i % Math.max(1, Math.floor(N/20)) === 0)) onProgress(i, N);
     }
 
@@ -611,7 +703,8 @@
       p_vice: contadores.vice[t]/N*100,
       p_terceiro: contadores.terceiro[t]/N*100,
       p_quarto: contadores.quarto[t]/N*100,
-      p_semi: contadores.semi[t]/N*100
+      p_semi: contadores.semi[t]/N*100,
+      eloMedio: USE_ELO ? somaElo[t]/N : null
     }));
     prob.sort((a,b) => b.p_campeao - a.p_campeao);
     return prob;
@@ -750,20 +843,12 @@
     const contadorFaseFinal = {};
     ORDEM_FASE_FINAL.forEach(f => contadorFaseFinal[f] = 0);
 
-    // funil: quantas vezes o time esteve "vivo" ao chegar em cada fase
-    // (chegar = jogou aquela fase, independente do resultado)
     const funilChegou = { grupos_eliminado:0, r32:0, r16:0, qf:0, sf:0, final_ou_3o:0, campeao:0 };
-
-    // trajetórias completas: chave = sequência "fase:oponente:V/D" concatenada,
-    // valor = {count, etapas (exemplo), faseFinal}
     const trajetorias = {};
-
-    // adversários mais prováveis POR FASE (mais estável estatisticamente do
-    // que o caminho completo, já que não exige que as fases anteriores
-    // batam exatamente) — chave: fase -> oponente -> {count, vitorias}
     const adversariosPorFase = {};
     FASES_MATA_MATA.concat([{key:'final', label:'Final'}, {key:'terceiro', label:'Disputa de 3º lugar'}]).forEach(f => { adversariosPorFase[f.key] = {}; });
     let chegouNaFase = { r32:0, r16:0, qf:0, sf:0, final:0, terceiro:0 };
+    let somaEloFinal = 0;  // acumula ELO final do time alvo
 
     for (let i=0;i<N;i++){
       const r = simularCopa(rng);
@@ -798,6 +883,11 @@
         if (e.venceu) adversariosPorFase[faseKey][e.oponente].vitorias++;
       });
 
+      // Acumula ELO final do time alvo nesta simulação
+      if (USE_ELO && r.eloFinal && r.eloFinal[timeAlvo] !== undefined){
+        somaEloFinal += r.eloFinal[timeAlvo];
+      }
+
       if (onProgress && (i % Math.max(1, Math.floor(N/20)) === 0)) onProgress(i, N);
     }
 
@@ -820,8 +910,6 @@
       campeao: funilChegou.campeao/N*100
     };
 
-    // Transforma adversariosPorFase em listas ordenadas, com % relativo a
-    // "dado que chegou a esta fase" (não relativo ao total de N simulações)
     const FASE_LABEL_CURTA = { r32:'Round of 32', r16:'Oitavas', qf:'Quartas', sf:'Semifinal', final:'Final', terceiro:'Disputa de 3º lugar' };
     const adversariosPorFaseOrdenado = Object.keys(adversariosPorFase).map(faseKey => {
       const total = chegouNaFase[faseKey] || 0;
@@ -837,7 +925,8 @@
       faseFinalProb,
       trajetorias: trajetoriasOrdenadas,
       funilPct,
-      adversariosPorFase: adversariosPorFaseOrdenado
+      adversariosPorFase: adversariosPorFaseOrdenado,
+      eloMedio: USE_ELO ? somaEloFinal/N : null
     };
   }
 
@@ -845,13 +934,19 @@
   window.CopaEngine = {
     GRUPOS, FLAGS, BASE_TEAMS, JOGOS_REALIZADOS,
     getTeams: () => TEAMS,
-    setOverall: (team, val) => { TEAMS[team].overall = val; },
-    resetTeam: (team) => { TEAMS[team] = { overall: overallBase(team) }; },
-    resetAll: () => { TEAMS = cloneBaseTeams(); },
+    setOverall: (team, val) => { TEAMS[team].overall = val; invalidarEloPosReais(); },
+    resetTeam: (team) => { TEAMS[team] = { overall: overallBase(team) }; invalidarEloPosReais(); },
+    resetAll: () => { TEAMS = cloneBaseTeams(); invalidarEloPosReais(); },
     overall, overallBase,
     mulberry32,
     simJogo, simularCopa, simularMonteCarlo, simularTrajetoria,
     LABEL_FASE_FINAL, ORDEM_FASE_FINAL,
-    ROUND_LABELS
+    ROUND_LABELS,
+    // ELO
+    setUseElo: (v) => { USE_ELO = v; },
+    getUseElo: () => USE_ELO,
+    getEloPosReais,
+    invalidarEloPosReais,
+    ELO_K, ELO_HA, ELO_MAX
   };
 })();

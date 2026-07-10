@@ -173,6 +173,7 @@
   // ---------------------------------------------------------------------
   function renderMCResult(prob, N){
     const maxCampeao = Math.max(...prob.map(p => p.p_campeao), 1);
+    const useElo = E.getUseElo();
     const rows = prob.map((row, i) => `
       <tr>
         <td><span class="rank-num">${i+1}</span>${flag(row.time)} ${esc(row.time)}</td>
@@ -181,18 +182,22 @@
         <td>${row.p_terceiro.toFixed(1)}%</td>
         <td>${row.p_quarto.toFixed(1)}%</td>
         <td>${row.p_semi.toFixed(1)}%</td>
+        ${useElo ? `<td class="elo-col">${row.eloMedio !== null ? row.eloMedio.toFixed(2) : '—'}</td>` : ''}
       </tr>`).join('');
+
+    const eloHeader = useElo ? '<th title="Média do rating ELO ao final de cada simulação">Rating ELO médio final</th>' : '';
+    const eloNote = useElo ? `<p class="section-desc" style="margin-top:10px;">★ <strong>Dinâmica ELO ativa</strong> — K=${E.ELO_K}, HA=${E.ELO_HA}, máx=${E.ELO_MAX}. O rating ELO médio final reflete a evolução acumulada ao longo das ${N.toLocaleString('pt-BR')} simulações.</p>` : '';
 
     document.getElementById('panel-mc').innerHTML = `
       <p class="section-desc" style="margin-bottom:18px;">Resultado de ${N.toLocaleString('pt-BR')} simulações independentes do torneio completo, com os ratings atuais.</p>
       <div class="mc-table-wrap">
         <table class="mc-table">
           <thead>
-            <tr><th>Seleção</th><th>Campeão</th><th>Vice</th><th>3º</th><th>4º</th><th>Semifinal</th></tr>
+            <tr><th>Seleção</th><th>Campeão</th><th>Vice</th><th>3º</th><th>4º</th><th>Semifinal</th>${eloHeader}</tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
-      </div>`;
+      </div>${eloNote}`;
   }
 
   // ---------------------------------------------------------------------
@@ -304,11 +309,16 @@
 
   function renderTrajResult(result){
     const time = result.time;
+    const useElo = E.getUseElo();
+    const eloMedioTag = (useElo && result.eloMedio !== null)
+      ? `<span class="traj-header-elo" title="Média do rating ELO ao final de cada simulação (K=${E.ELO_K}, HA=${E.ELO_HA}, máx=${E.ELO_MAX})">★ ELO médio final: <strong>${result.eloMedio.toFixed(2)}</strong></span>`
+      : '';
     document.getElementById('panel-traj-results').innerHTML = `
       <div class="traj-header">
         <span class="traj-header-flag">${flag(time)}</span>
         <span class="traj-header-name">${esc(time)}</span>
         <span class="traj-header-n">${result.N.toLocaleString('pt-BR')} simulações do mata-mata, a partir da fase de grupos já encerrada</span>
+        ${eloMedioTag}
       </div>
 
       <div class="section-head" style="margin-top:28px;">
